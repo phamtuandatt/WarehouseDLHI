@@ -121,14 +121,14 @@ CREATE TABLE Customers (
 );
 
 -- Project
-CREATE TABLE projects (
+CREATE TABLE Projects (
 	id					INT PRIMARY KEY,
 	name				NVARCHAR(50),
 	code				VARCHAR(50),
 	project_no			VARCHAR(50),
 	info				VARCHAR(100),
 	wo_no				VARCHAR(50),
-	customer_id			INT REFERENCES customers(id) ON DELETE SET NULL,
+	customer_id			INT REFERENCES Customers(id) ON DELETE SET NULL,
 	budget				DECIMAL(18,2),
 	total_order_amount	DECIMAL(18,2),
 	total_mpr_created	INT,
@@ -140,6 +140,20 @@ CREATE TABLE Units (
 	id			INT PRIMARY KEY,
 	name		NVARCHAR(50),
 	unit_price	DECIMAL(18, 2),
+)
+
+-- Origins
+CREATE TABLE Origins (
+	id		INT IDENTITY(1,1) PRIMARY KEY,
+	code	VARCHAR(20),
+	name	NVARCHAR(50),
+)
+
+-- Standard
+CREATE TABLE Standards (
+	id		INT IDENTITY(1,1) PRIMARY KEY,
+	code	VARCHAR(20),
+	name	NVARCHAR(50)
 )
 
 -- Material Categories - Danh mục vật tư (Main, Fitting,...)
@@ -182,3 +196,113 @@ CREATE TABLE Material_Detail (
 --    CONSTRAINT FK_Trans_Material FOREIGN KEY (material_id) REFERENCES Materials(material_id),
 --    CONSTRAINT FK_Trans_Emp FOREIGN KEY (emp_id) REFERENCES Employees(emp_id)
 --);
+
+CREATE TABLE Suppliers (
+    supplier_id		INT IDENTITY(1,1) PRIMARY KEY,
+    supplier_code	VARCHAR(20) UNIQUE, -- Ví dụ: NCC-HOAPHAT
+    supplier_name	NVARCHAR(255) NOT NULL,
+    cert			VARCHAR(50),
+	tax_code		VARCHAR(20),
+    address			NVARCHAR(500),
+    contact_person	NVARCHAR(100),
+    phone			VARCHAR(20),
+    email			VARCHAR(100)
+);
+
+-- Bảng sản phẩm
+CREATE TABLE Products (
+	id					INT IDENTITY(1,1) PRIMARY KEY,
+	name				NVARCHAR(50),
+	des_2				NVARCHAR(50),
+	code				VARCHAR(50),
+	prod_material_code	VARCHAR(50), -- Standard name
+	picture_link		NVARCHAR(200),
+	picture				VARBINARY(MAX),
+	a_thinkness			VARCHAR(10),
+	b_depth				VARCHAR(10),
+	c_witdth			VARCHAR(10),
+	d_web				VARCHAR(10),
+	e_flag				VARCHAR(10),
+	f_length			VARCHAR(10),
+	g_weight			VARCHAR(10),
+	used_note			NVARCHAR(100),
+	 
+	-- Mở rộng -> Tạo khóa ngoại
+	prod_origin_id			INT DEFAULT NULL,	-- Origin: DO (trong nước), P1 (Nhập miễn thuế),...
+	prod_standard_id		INT DEFAULT NULL,	-- Standard: 000, 0001,... (A363, A572,...)
+	prod_material_cate_id	INT DEFAULT NULL,	-- Material_Categories: Main, Fitting,...
+	prod_material_id		INT DEFAULT NULL,	-- Material: Plate, Beam,...
+	prod_material_detail_id	INT DEFAULT NULL,	-- Material_detail: Plate dày, plate mỏng,...
+)
+
+-- Thông tin chung của phiếu yêu cầu
+CREATE TABLE MPR_Header (
+    mpr_id					INT IDENTITY(1,1) PRIMARY KEY,
+    mpr_no					VARCHAR(50) UNIQUE, -- Mã phiếu tự sinh (VD: MPR-2026-0001)
+	mpr_rev_total			INT, -- Update khi tạo Rev cho MPR hiện tại
+    request_date			DATE DEFAULT GETDATE(),
+	created_date			DATE DEFAULT GETDATE(),
+	expected_delivery_date	DATE DEFAULT DATEADD(day, 7, GETDATE()),
+	is_make_po				BIT DEFAULT 0, -- 1 true, 0 false
+	is_cancaled				BIT DEFAULT 0, -- 1 true, 0 false
+    status					NVARCHAR(50) DEFAULT N'Pending', -- Pending, Approved, Rejected, Ordered
+    note					NVARCHAR(MAX),
+	--old_value_mpr			VARCHAR(MAX),
+	--new_value_mpr			VARCHAR(MAX),
+
+	-- Kiểm soát số lượng vật tư tổng, đã đặt, phần trăm hoàn thành
+	mpr_total_qty			INT, -- Tổng số lượng vật tư trong MPR
+	mpr_order_qty			INT, -- Số lượng vật tư đã làm PO -> Update sau khi tạo PO
+	mpr_remaining_qyt		AS (mpr_total_qty - mpr_order_qty), 
+	process_per				AS ((mpr_order_qty / mpr_total_qty) * 0.1),
+
+	-- Ai làm, ai review, ai duyệt
+	preparer_name			NVARCHAR(50),
+	reviewer_name			NVARCHAR(50),
+	approver_name			NVARCHAR(50),
+	preparer_id				INT, -- Emp id
+	reviewer_id				INT, -- Emp id
+	approver_id				INT, -- Emp id
+	requester_id			INT, -- Emp id
+
+	-- Của dự án nào
+    project_id				INT,   -- Liên kết Projects
+    CONSTRAINT FK_MPR_Employee FOREIGN KEY (project_id) REFERENCES Projects(id)
+);
+
+-- Chi tiết các vật tư trong phiếu yêu cầu
+CREATE TABLE MPR_Details (
+    mpr_detail_id			INT IDENTITY(1,1) PRIMARY KEY,
+    mpr_id					INT,
+    product_id				INT,
+	usage					VARCHAR(50),
+	MPS						VARCHAR(50),
+	REV						INT DEFAULT 0, -- Sẽ được cập nhật nếu được revise
+	draw_recevie_date		DATE DEFAULT GETDATE(),
+	issue_date				DATE DEFAULT GETDATE(),
+	unit					VARCHAR(20),
+    requested_qty			INT,
+	weight					FLOAT,
+	remarks					NVARCHAR(255),
+
+    created_date			DATE DEFAULT GETDATE(),
+	updated_date			DATE DEFAULT GETDATE(),
+
+    CONSTRAINT FK_MPR_Detail_Mpr_Header FOREIGN KEY (mpr_id) REFERENCES MPR_Header(mpr_id) ON DELETE CASCADE,
+);
+
+-- Lịch sử cập nhật/thêm/sửa MPR
+CREATE TABLE MPR_Audit_Log (
+    log_id				INT IDENTITY(1,1) PRIMARY KEY,
+    mpr_id				INT,                  -- ID của phiếu MPR bị tác động
+    table_name			NVARCHAR(50),     -- Tên bảng (MPR_Header hoặc MPR_Details)
+    column_name			NVARCHAR(50),    -- Tên cột bị thay đổi (Số lượng, Ngày, Trạng thái...)
+    old_value			NVARCHAR(MAX),     -- Giá trị trước khi sửa
+    new_value			NVARCHAR(MAX),     -- Giá trị sau khi sửa
+    action_type			NVARCHAR(20),    -- Loại thao tác: INSERT, UPDATE, DELETE
+    changed_by_emp_id	INT,       -- ID nhân viên thực hiện (Liên kết module HRM)
+    changed_at			DATETIME DEFAULT GETDATE(), -- Thời điểm thực hiện
+    client_ip			VARCHAR(50),       -- IP máy tính thực hiện (nếu cần truy vết)
+    
+    CONSTRAINT FK_Audit_Emp FOREIGN KEY (changed_by_emp_id) REFERENCES Employees(emp_id)
+);
