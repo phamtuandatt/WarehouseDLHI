@@ -96,6 +96,19 @@ CREATE TABLE Exchange_rates (
     UNIQUE(from_currency, to_currency, effective_date)
 );
 
+-- Nhà cung cấp - Supplier
+CREATE TABLE Suppliers (
+    supplier_id		INT IDENTITY(1,1) PRIMARY KEY,
+    supplier_code	VARCHAR(20) UNIQUE, -- Ví dụ: NCC-HOAPHAT
+    supplier_name	NVARCHAR(255) NOT NULL,
+    cert			VARCHAR(50),
+	tax_code		VARCHAR(20),
+    address			NVARCHAR(500),
+    contact_person	NVARCHAR(100),
+    phone			VARCHAR(20),
+    email			VARCHAR(100)
+);
+
 -- Khách hàng
 CREATE TABLE Customer_type (
 	id					INT PRIMARY KEY,
@@ -135,6 +148,9 @@ CREATE TABLE Projects (
 	total_po_created	INT,
 	remaining_budget	AS (budget - total_order_amount)
 )
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+--------------------------------------------------------------------PRODUCT
 -- Unit
 CREATE TABLE Units (
 	id			INT PRIMARY KEY,
@@ -146,14 +162,14 @@ CREATE TABLE Units (
 CREATE TABLE Origins (
 	id		INT IDENTITY(1,1) PRIMARY KEY,
 	code	VARCHAR(20),
-	name	NVARCHAR(50),
+	name	NVARCHAR(MAX),
 )
 
 -- Standard
 CREATE TABLE Standards (
 	id		INT IDENTITY(1,1) PRIMARY KEY,
 	code	VARCHAR(20),
-	name	NVARCHAR(50)
+	name	NVARCHAR(225)
 )
 
 -- Material Categories - Danh mục vật tư (Main, Fitting,...)
@@ -166,7 +182,7 @@ CREATE TABLE Material_Categories (
 CREATE TABLE Materials (
     material_id		INT IDENTITY(1,1) PRIMARY KEY,
     material_code	VARCHAR(50) NOT NULL UNIQUE,
-    material_name	NVARCHAR(255) NOT NULL,
+    material_name	NVARCHAR(255),
     specifications	NVARCHAR(MAX),
     created_at  	DATETIME DEFAULT GETDATE(),
 
@@ -177,37 +193,12 @@ CREATE TABLE Materials (
 -- Chi tiết vật tư 
 CREATE TABLE Material_Detail (
 	material_detail_id		INT PRIMARY KEY,
-	material_detail_code	VARCHAR(50),
 	material_detail_number	VARCHAR(5),
 	material_detail_name	NVARCHAR(100),
+	material_detail_code	VARCHAR(50),
 
 	CONSTRAINT FK_Material_Detail_Materials FOREIGN KEY (material_detail_id) REFERENCES Materials(material_id)
 )
-
----- Bảng Lịch sử Nhập/Xuất kho (Để quản lý tồn kho chặt chẽ)
---CREATE TABLE Inventory_Transactions (
---    trans_id INT IDENTITY(1,1) PRIMARY KEY,
---    material_id INT,
---    trans_type NVARCHAR(20), -- 'IMPORT' (Nhập), 'EXPORT' (Xuất)
---    quantity DECIMAL(18, 2),
---    trans_date DATETIME DEFAULT GETDATE(),
---    note NVARCHAR(255),
---    emp_id INT, -- Ai là người thực hiện (Liên kết module HRM)
---    CONSTRAINT FK_Trans_Material FOREIGN KEY (material_id) REFERENCES Materials(material_id),
---    CONSTRAINT FK_Trans_Emp FOREIGN KEY (emp_id) REFERENCES Employees(emp_id)
---);
-
-CREATE TABLE Suppliers (
-    supplier_id		INT IDENTITY(1,1) PRIMARY KEY,
-    supplier_code	VARCHAR(20) UNIQUE, -- Ví dụ: NCC-HOAPHAT
-    supplier_name	NVARCHAR(255) NOT NULL,
-    cert			VARCHAR(50),
-	tax_code		VARCHAR(20),
-    address			NVARCHAR(500),
-    contact_person	NVARCHAR(100),
-    phone			VARCHAR(20),
-    email			VARCHAR(100)
-);
 
 -- Bảng sản phẩm
 CREATE TABLE Products (
@@ -234,6 +225,50 @@ CREATE TABLE Products (
 	prod_material_id		INT DEFAULT NULL,	-- Material: Plate, Beam,...
 	prod_material_detail_id	INT DEFAULT NULL,	-- Material_detail: Plate dày, plate mỏng,...
 )
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+------------------------------------------------------------------INVENTORY
+CREATE TABLE Project_Stock (
+    project_stock_id	INT IDENTITY(1,1) PRIMARY KEY, -- ID tự tăng của hệ thống
+    project_id			INT NOT NULL,                  -- Liên kết đến dự án cụ thể
+    product_id			INT NOT NULL,                  -- Liên kết đến loại vật tư cụ thể
+    on_hand_qty			DECIMAL(18, 4) DEFAULT 0,      -- Số lượng thực tế đang tồn tại dự án
+    last_updated		DATETIME DEFAULT GETDATE(),    -- Thời điểm cập nhật cuối cùng
+    storage_location	NVARCHAR(100) NULL,            -- Vị trí để (Khu vực A, Lán trại B,...)
+    
+    -- Các ràng buộc (Constraints) để đảm bảo dữ liệu "sạch"
+    CONSTRAINT FK_Stock_Project FOREIGN KEY (project_id) REFERENCES Projects(id),
+    CONSTRAINT FK_Stock_Material FOREIGN KEY (product_id) REFERENCES Products(id),
+    
+    -- Ràng buộc UNIQUE: Đảm bảo một dự án không bị lặp lại dòng cho cùng một mã vật tư
+    CONSTRAINT UQ_Project_Material UNIQUE (project_id, product_id),
+    
+    -- Ràng buộc CHECK: Đảm bảo tồn kho không bị âm (Tùy chọn)
+    CONSTRAINT CHK_NonNegative_Stock CHECK (on_hand_qty >= 0)
+);
+
+GO
+CREATE TABLE Project_Inventory_Transactions (
+    p_trans_id		INT IDENTITY(1,1) PRIMARY KEY,
+    project_id		INT,
+    product_id		INT,
+    trans_type		NVARCHAR(20), -- 'PROJECT_IMPORT' (Nhập về DA), 'PROJECT_USAGE' (Xuất dùng)
+    quantity		DECIMAL(18, 2),
+    trans_date		DATETIME DEFAULT GETDATE(),
+    reference_no	VARCHAR(50), -- Số phiếu PO hoặc số lệnh sản xuất
+    note			NVARCHAR(255),
+    emp_id			INT, -- Người thực hiện (Module HRM)
+	emp_name		NVARCHAR(100),
+    
+    CONSTRAINT FK_P_Trans_Project FOREIGN KEY (project_id) REFERENCES Projects(id),
+    CONSTRAINT FK_P_Trans_Products FOREIGN KEY (product_id) REFERENCES Products(id),
+    CONSTRAINT FK_P_Trans_Emp FOREIGN KEY (emp_id) REFERENCES Employees(emp_id)
+);
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
 
 -- Thông tin chung của phiếu yêu cầu
 CREATE TABLE MPR_Header (
@@ -306,3 +341,4 @@ CREATE TABLE MPR_Audit_Log (
     
     CONSTRAINT FK_Audit_Emp FOREIGN KEY (changed_by_emp_id) REFERENCES Employees(emp_id)
 );
+
