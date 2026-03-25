@@ -148,9 +148,11 @@ CREATE TABLE Projects (
 	total_po_created	INT,
 	remaining_budget	AS (budget - total_order_amount)
 )
----------------------------------------------------------------------------
----------------------------------------------------------------------------
---------------------------------------------------------------------PRODUCT
+------------------------------------------------------------------------------------------------------------------------------------------------------
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+----------------------------------------------------------------START MODULE PRODUCT------------------------------------------------------------------
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
 -- Unit
 CREATE TABLE Units (
 	id			INT PRIMARY KEY,
@@ -225,12 +227,17 @@ CREATE TABLE Products (
 	prod_material_id		INT DEFAULT NULL,	-- Material: Plate, Beam,...
 	prod_material_detail_id	INT DEFAULT NULL,	-- Material_detail: Plate dày, plate mỏng,...
 )
----------------------------------------------------------------------------
----------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+----------------------------------------------------------------END MODULE PRODUCT--------------------------------------------------------------------
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
 
----------------------------------------------------------------------------
----------------------------------------------------------------------------
-------------------------------------------------------------------INVENTORY
+------------------------------------------------------------------------------------------------------------------------------------------------------
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+----------------------------------------------------------------START MODULE INVENTORY----------------------------------------------------------------
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
 CREATE TABLE Project_Stock (
     project_stock_id	INT IDENTITY(1,1) PRIMARY KEY, -- ID tự tăng của hệ thống
     project_id			INT NOT NULL,                  -- Liên kết đến dự án cụ thể
@@ -250,25 +257,82 @@ CREATE TABLE Project_Stock (
     CONSTRAINT CHK_NonNegative_Stock CHECK (on_hand_qty >= 0)
 );
 
+-- Project Import
 GO
-CREATE TABLE Project_Inventory_Transactions (
-    p_trans_id		INT IDENTITY(1,1) PRIMARY KEY,
+CREATE TABLE Project_Import_Inventory_Transactions (
+    p_i_trans_id	INT IDENTITY(1,1) PRIMARY KEY,
     project_id		INT,
-    product_id		INT,
-    trans_type		NVARCHAR(20), -- 'PROJECT_IMPORT' (Nhập về DA), 'PROJECT_USAGE' (Xuất dùng)
-    quantity		DECIMAL(18, 2),
-    trans_date		DATETIME DEFAULT GETDATE(),
-    reference_no	VARCHAR(50), -- Số phiếu PO hoặc số lệnh sản xuất
+	project_code	INT,
+    trans_type		NVARCHAR(20) DEFAULT 'PROJECT_IMPORT', -- 'PROJECT_IMPORT' (Nhập về DA)
+    total_quantity	DECIMAL(18, 2),
+    i_trans_date	DATETIME DEFAULT GETDATE(),
+    po_no			VARCHAR(50), -- Số phiếu PO hoặc số lệnh sản xuất -> Nhập hàng theo PO nào
+	import_no		VARCHAR(50), -- Số phiếu nhập kho
+	invoice_no		VARCHAR(50), -- Số hóa đơn
     note			NVARCHAR(255),
+
+	supplier_id		INT, -- Của nhà cung cấp nào
     emp_id			INT, -- Người thực hiện (Module HRM)
 	emp_name		NVARCHAR(100),
-    
-    CONSTRAINT FK_P_Trans_Project FOREIGN KEY (project_id) REFERENCES Projects(id),
-    CONSTRAINT FK_P_Trans_Products FOREIGN KEY (product_id) REFERENCES Products(id),
+	po_id			INT, -- Trans này của PO nào
+
+	CONSTRAINT FK_P_Trans_Project FOREIGN KEY (project_id) REFERENCES Projects(id),
     CONSTRAINT FK_P_Trans_Emp FOREIGN KEY (emp_id) REFERENCES Employees(emp_id)
-);
----------------------------------------------------------------------------
----------------------------------------------------------------------------
+)
+
+GO
+CREATE TABLE Project_Import_Invetory_Details (
+	p_i_detail_id	INT IDENTiTY(1,1) PRIMARY KEY,
+	p_i_trans_id	INT, -- ID Trans,
+	product_id		INT, -- 
+	import_qty		DECIMAL(18,2),
+	unit			VARCHAR(20),
+	time			INT, -- Số lần nhập - nhập lần 1 - 20psc, nhập lần 2 - 10psc => đủ
+	note			NVARCHAR(MAX),
+
+	CONSTRAINT FK_P_Import_Inventory_Detail_P_Import_Trans FOREIGN KEY (p_i_trans_id) REFERENCES Project_Import_Inventory_Transactions(p_i_trans_id),
+	CONSTRAINT FK_P_Trans_Products FOREIGN KEY (product_id) REFERENCES Products(id),
+)
+
+-- Project Usage
+GO
+CREATE TABLE Project_Usage_Inventory_Transactions (
+    p_u_trans_id	INT IDENTITY(1,1) PRIMARY KEY,
+    project_id		INT,
+	project_code	VARCHAR(50),
+    trans_type		NVARCHAR(20) DEFAULT 'PROJECT_USAGE', -- Lấy sử dụng
+    total_quantity	DECIMAL(18, 2),
+    u_trans_date	DATETIME DEFAULT GETDATE(),
+    reference_no	VARCHAR(50), -- Số phiếu xuất kho
+	u_for_dep		VARCHAR(50), -- Xuất cho bộ phận nào
+	emp_name_get	NVARCHAR(100),
+    note			NVARCHAR(255),
+
+    emp_id			INT, -- Người thực hiện (Module HRM)
+	emp_name		NVARCHAR(50), -- Tên người thực hiện
+
+	CONSTRAINT FK_P_Trans_Project FOREIGN KEY (project_id) REFERENCES Projects(id),
+    CONSTRAINT FK_P_Trans_Emp FOREIGN KEY (emp_id) REFERENCES Employees(emp_id)
+)
+
+GO
+CREATE TABLE Project_Usage_Invetory_Details (
+	p_u_detail_id	INT IDENTiTY(1,1) PRIMARY KEY,
+	p_u_trans_id	INT, -- ID Trans,
+	product_id		INT, -- 
+	usage_qty		DECIMAL(18,2),
+	unit			VARCHAR(20),
+	time			INT, -- Số lần xuất
+	note			NVARCHAR(MAX),
+
+	CONSTRAINT FK_P_Usage_Inventory_Detail_P_Usage_Trans FOREIGN KEY (p_u_trans_id) REFERENCES Project_Usage_Inventory_Transactions(p_u_trans_id),
+	CONSTRAINT FK_P_Trans_Products FOREIGN KEY (product_id) REFERENCES Products(id),
+)
+------------------------------------------------------------------------------------------------------------------------------------------------------
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------END MODULE INVENTORY----------------------------------------------------------------
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+------------------------------------------------------------------------------------------------------------------------------------------------------
 
 -- Thông tin chung của phiếu yêu cầu
 CREATE TABLE MPR_Header (
