@@ -262,7 +262,7 @@ GO
 CREATE TABLE Project_Import_Inventory_Transactions (
     p_i_trans_id	INT IDENTITY(1,1) PRIMARY KEY,
     project_id		INT,
-	project_code	INT,
+	project_code	VARCHAR(50),
     trans_type		NVARCHAR(20) DEFAULT 'PROJECT_IMPORT', -- 'PROJECT_IMPORT' (Nhập về DA)
     total_quantity	DECIMAL(18, 2),
     i_trans_date	DATETIME DEFAULT GETDATE(),
@@ -328,6 +328,27 @@ CREATE TABLE Project_Usage_Invetory_Details (
 	CONSTRAINT FK_P_Usage_Inventory_Detail_P_Usage_Trans FOREIGN KEY (p_u_trans_id) REFERENCES Project_Usage_Inventory_Transactions(p_u_trans_id),
 	CONSTRAINT FK_P_Trans_Products FOREIGN KEY (product_id) REFERENCES Products(id),
 )
+
+--------------------------------TYPE--------------------------
+-- Type cho chi tiết nhập
+CREATE TYPE udt_ProjectImportDetail AS TABLE (
+    product_id INT,
+    import_qty DECIMAL(18,2),
+    unit VARCHAR(20),
+    time INT,
+    note NVARCHAR(MAX)
+);
+GO
+
+-- Type cho chi tiết xuất (sử dụng)
+CREATE TYPE udt_ProjectUsageDetail AS TABLE (
+    product_id INT,
+    usage_qty DECIMAL(18,2),
+    unit VARCHAR(20),
+    time INT,
+    note NVARCHAR(MAX)
+);
+GO
 ------------------------------------------------------------------------------------------------------------------------------------------------------
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ------------------------------------------------------------------END MODULE INVENTORY----------------------------------------------------------------

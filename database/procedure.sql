@@ -1,82 +1,101 @@
-﻿
--- Proc export products
-CREATE PROCEDURE sp_ExportProjectMaterial
-    @ProjectID		INT,
-    @ProductID		INT,
-    @QtyToExport	DECIMAL(18, 2),
-    @EmpID			INT,			-- Người yêu cầu xuất (Module HRM)
-	@EmpName		NVARCHAR(50),
-    @ReferenceNo	VARCHAR(50),	-- Số lệnh sản xuất hoặc phiếu xuất
-    @Note			NVARCHAR(255)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    DECLARE @CurrentStock DECIMAL(18, 2);
-
-    -- 1. Lấy số lượng tồn hiện tại của vật tư trong dự án đó
-    SELECT @CurrentStock = on_hand_qty 
-    FROM Project_Stock 
-    WHERE project_id = @ProjectID AND product_id = @ProductID;
-
-    -- 2. Kiểm tra điều kiện xuất
-    IF @CurrentStock IS NULL
-    BEGIN
-        RAISERROR(N'Error: This product is not available in the project !', 16, 1);
-        RETURN;
-    END
-
-    IF @CurrentStock < @QtyToExport
-    BEGIN
-        DECLARE @ErrMsg NVARCHAR(250) = N'Error: This product is currently out of stock! (Available: ' 
-                                        + CAST(@CurrentStock AS NVARCHAR) + N', Requiment: ' 
-                                        + CAST(@QtyToExport AS NVARCHAR) + N')';
-        RAISERROR(@ErrMsg, 16, 1);
-        RETURN;
-    END
-
-    -- 3. Nếu đủ điều kiện, tiến hành ghi log giao dịch
-    -- Trigger trg_UpdateProjectStock (đã tạo ở bước trước) sẽ tự động trừ Project_Stock.on_hand_qty
-    INSERT INTO Project_Inventory_Transactions (
-        project_id, product_id, trans_type, quantity, reference_no, note, emp_id, emp_name, trans_date
-    )
-    VALUES (
-        @ProjectID, @ProductID, 'PROJECT_USAGE', @QtyToExport, @ReferenceNo, @Note, @EmpID, @EmpName, GETDATE()
-    );
-
-    SELECT N'Successfully shipped from the warehouse!' AS Result;
-END
-GO
--- proc import material
-CREATE PROCEDURE sp_ImportProjectStock
-    @ProjectID		INT,
-    @ProductID		INT,
-    @QtyToImport	DECIMAL(18, 2),
-    @EmpID			INT,           -- Người thực hiện nhập (Module HRM)
-	@EmpName		NVARCHAR(50),
-    @ReferenceNo	VARCHAR(50), -- Số phiếu PO hoặc số vận đơn
-    @Note			NVARCHAR(255)
+﻿-- ============================================================== PROC IMPORT
+CREATE PROCEDURE sp_InsertProjectImport
+    @project_id INT,
+    @project_code INT,
+    @total_quantity DECIMAL(18, 2),
+    @po_no VARCHAR(50),
+    @import_no VARCHAR(50),
+    @invoice_no VARCHAR(50),
+    @note NVARCHAR(255),
+    @supplier_id INT,
+    @emp_id INT,
+    @emp_name NVARCHAR(100),
+    @po_id INT,
+    @Details udt_ProjectImportDetail READONLY -- Danh sách vật tư truyền từ C#
 AS
 BEGIN
     SET NOCOUNT ON;
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        -- Ghi log giao dịch nhập kho
-        -- Trigger trg_UpdateProjectStock sẽ tự động cộng dồn vào bảng Project_Stock
-        INSERT INTO Project_Inventory_Transactions (
-            project_id, product_id, trans_type, quantity, reference_no, note, emp_id, emp_name, trans_date
-        )
-        VALUES (
-            @ProjectID, @ProductID, 'PROJECT_IMPORT', @QtyToImport, @ReferenceNo, @Note, @EmpID, @EmpName, GETDATE()
-        );
+        -- 1. Chèn bảng chính (Transactions)
+        DECLARE @NewTransID INT;
+        INSERT INTO Project_Import_Inventory_Transactions 
+            (project_id, project_code, total_quantity, po_no, import_no, invoice_no, note, supplier_id, emp_id, emp_name, po_id)
+        VALUES 
+            (@project_id, @project_code, @total_quantity, @po_no, @import_no, @invoice_no, @note, @supplier_id, @emp_id, @emp_name, @po_id);
+        
+        SET @NewTransID = SCOPE_IDENTITY();
+
+        -- 2. Chèn bảng chi tiết (Details)
+        INSERT INTO Project_Import_Invetory_Details (p_i_trans_id, product_id, import_qty, unit, [time], note)
+        SELECT @NewTransID, product_id, import_qty, unit, [time], note FROM @Details;
+
+        -- 3. Cập nhật tồn kho thực tế (Project_Stock)
+        -- Sử dụng MERGE để: Nếu có rồi thì cộng thêm, chưa có thì tạo mới dòng tồn kho
+        MERGE Project_Stock AS target
+        USING (SELECT product_id, SUM(import_qty) as total_qty FROM @Details GROUP BY product_id) AS source
+        ON (target.project_id = @project_id AND target.product_id = source.product_id)
+        WHEN MATCHED THEN
+            UPDATE SET on_hand_qty = target.on_hand_qty + source.total_qty, last_updated = GETDATE()
+        WHEN NOT MATCHED THEN
+            INSERT (project_id, product_id, on_hand_qty, last_updated)
+            VALUES (@project_id, source.product_id, source.total_qty, GETDATE());
 
         COMMIT TRANSACTION;
-        SELECT N'Successfully received into inventory!' AS Result;
+        SELECT @NewTransID AS NewID, N'Nhập kho thành công' AS Message;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-        DECLARE @ErrMsg NVARCHAR(4000) = ERROR_MESSAGE();
-        RAISERROR(@ErrMsg, 16, 1);
+        THROW;
     END CATCH
-END
-GO
+END;
+
+--======================================PROC USAGE
+CREATE PROCEDURE sp_InsertProjectUsage
+    @project_id INT,
+    @project_code VARCHAR(50),
+    @total_quantity DECIMAL(18, 2),
+    @reference_no VARCHAR(50),
+    @u_for_dep VARCHAR(50),
+    @emp_name_get NVARCHAR(100),
+    @note NVARCHAR(255),
+    @emp_id INT,
+    @emp_name NVARCHAR(50),
+    @Details udt_ProjectUsageDetail READONLY
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- 1. Chèn bảng chính (Usage Transactions)
+        DECLARE @NewTransID INT;
+        INSERT INTO Project_Usage_Inventory_Transactions 
+            (project_id, project_code, total_quantity, reference_no, u_for_dep, emp_name_get, note, emp_id, emp_name)
+        VALUES 
+            (@project_id, @project_code, @total_quantity, @reference_no, @u_for_dep, @emp_name_get, @note, @emp_id, @emp_name);
+        
+        SET @NewTransID = SCOPE_IDENTITY();
+
+        -- 2. Chèn bảng chi tiết (Details)
+        INSERT INTO Project_Usage_Invetory_Details (p_u_trans_id, product_id, usage_qty, unit, [time], note)
+        SELECT @NewTransID, product_id, usage_qty, unit, [time], note FROM @Details;
+
+        -- 3. Cập nhật trừ tồn kho (Project_Stock)
+        UPDATE ps
+        SET ps.on_hand_qty = ps.on_hand_qty - d.total_qty,
+            ps.last_updated = GETDATE()
+        FROM Project_Stock ps
+        JOIN (SELECT product_id, SUM(usage_qty) as total_qty FROM @Details GROUP BY product_id) d 
+        ON ps.product_id = d.product_id
+        WHERE ps.project_id = @project_id;
+
+        COMMIT TRANSACTION;
+        SELECT @NewTransID AS NewID, N'Xuất kho thành công' AS Message;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
