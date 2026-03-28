@@ -1,4 +1,6 @@
-﻿-- Module core - Nền tảng chung
+﻿CREATE DATABASE WAREHOUSE_DLHI_VINA
+
+-- Module core - Nền tảng chung
 CREATE TABLE Companies (
     id              INT PRIMARY KEY,
     code            VARCHAR(20) UNIQUE NOT NULL,
@@ -152,7 +154,7 @@ CREATE TABLE Projects (
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
 ----------------------------------------------------------------START MODULE PRODUCT------------------------------------------------------------------
 --xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
-------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------Đã tạo bảng----------------------------------------------------------------------------
 -- Unit
 CREATE TABLE Units (
 	id			INT PRIMARY KEY,

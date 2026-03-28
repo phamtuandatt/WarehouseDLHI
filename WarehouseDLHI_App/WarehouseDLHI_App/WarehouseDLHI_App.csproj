@@ -45,12 +45,18 @@
     <Reference Include="Krypton.Workspace, Version=100.26.1.19, Culture=neutral, PublicKeyToken=a87e673e9ecb6e8e, processorArchitecture=MSIL">
       <HintPath>..\packages\Krypton.Workspace.100.26.1.19\lib\net48\Krypton.Workspace.dll</HintPath>
     </Reference>
+    <Reference Include="Microsoft.Office.Interop.Excel, Version=16.0.0.0, Culture=neutral, PublicKeyToken=71e9bce111e9429c, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Office.Interop.Excel.16.0.18925.20022\lib\net40\Microsoft.Office.Interop.Excel.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Buffers, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Buffers.4.5.1\lib\net461\System.Buffers.dll</HintPath>
     </Reference>
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Design" />
+    <Reference Include="System.Diagnostics.Tracing" />
     <Reference Include="System.Memory, Version=4.0.1.2, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Memory.4.5.5\lib\net461\System.Memory.dll</HintPath>
     </Reference>
@@ -72,16 +78,36 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Common\CommonForm.cs" />
+    <Compile Include="Common\ContextHelper.cs" />
     <Compile Include="MainGUI\fmrMain.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="MainGUI\fmrMain.Designer.cs">
       <DependentUpon>fmrMain.cs</DependentUpon>
     </Compile>
+    <Compile Include="MPR_GUI\ucMPRMangement.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="MPR_GUI\ucMPRMangement.Designer.cs">
+      <DependentUpon>ucMPRMangement.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PO_GUI\ucPOManagement.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="PO_GUI\ucPOManagement.Designer.cs">
+      <DependentUpon>ucPOManagement.cs</DependentUpon>
+    </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="MainGUI\fmrMain.resx">
       <DependentUpon>fmrMain.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MPR_GUI\ucMPRMangement.resx">
+      <DependentUpon>ucMPRMangement.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PO_GUI\ucPOManagement.resx">
+      <DependentUpon>ucPOManagement.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -136,6 +162,28 @@
     <Content Include="Resources\warehouse %282%29.png" />
     <Content Include="Resources\warehouse.png" />
     <Content Include="Resources\yellow-dot.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="ProjectGUI\" />
+    <Folder Include="ViewModels\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WarehouseDLHI_BLL\WarehouseDLHI_BLL.csproj">
+      <Project>{90d93d21-97e9-477e-a862-6405ea374ec3}</Project>
+      <Name>WarehouseDLHI_BLL</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\TUAN DAT\OneDrive\Working\Backup\Revise_MPR_WindowForm\Revise_MPR_Form\Revise_MPR_BLL\Revise_MPR_BLL.csproj">
+      <Project>{dfbed2da-6646-4596-80ac-0d066317e262}</Project>
+      <Name>Revise_MPR_BLL</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\TUAN DAT\OneDrive\Working\Backup\Revise_MPR_WindowForm\Revise_MPR_Form\Revise_MPR_Form\Revise_MPR_Form.csproj">
+      <Project>{aed88049-241d-447e-9607-29c5b364846c}</Project>
+      <Name>Revise_MPR_Form</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\TUAN DAT\OneDrive\Working\Backup\Revise_PO_WindowForm\Revise_PO_Form\Revise_PO_Form\Revise_PO_Form.csproj">
+      <Project>{DACBCDB6-FB49-48A3-9417-87BFACA4D12F}</Project>
+      <Name>Revise_PO_Form</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
